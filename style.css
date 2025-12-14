@@ -1,0 +1,125 @@
+body { 
+    font-family: Arial, sans-serif; 
+    max-width: 500px; 
+    margin: 20px auto; 
+    padding: 20px; 
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+}
+
+.container {
+    background: white;
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+}
+
+.main-container {
+    margin: 50px auto;
+}
+
+h1 { 
+    color: #333; 
+    text-align: center;
+    margin-bottom: 10px;
+}
+
+.subtitle {
+    text-align: center;
+    color: #666;
+    margin-bottom: 30px;
+}
+
+input {
+    width: 100%;
+    padding: 12px;
+    margin: 8px 0;
+    box-sizing: border-box;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 16px;
+}
+
+input:focus {
+    border-color: #667eea;
+    outline: none;
+}
+
+button {
+    background-color: #4CAF50;
+    color: white;
+    padding: 14px 20px;
+    margin: 8px 0;
+    border: none;
+    cursor: pointer;
+    width: 100%;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    transition: all 0.3s;
+}
+
+button:hover { 
+    background-color: #45a049;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+.scan-btn { 
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.scan-btn:hover { 
+    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+}
+
+.network-btn {
+    background-color: #f0f0f0;
+    color: #333;
+    text-align: left;
+    padding: 12px 15px;
+    margin: 5px 0;
+    border: 2px solid #ddd;
+}
+
+.network-btn:hover {
+    background-color: #e0e0e0;
+    border-color: #667eea;
+}
+
+.unlock-btn {
+    background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+    padding: 30px 60px;
+    font-size: 32px;
+}
+
+.reset-btn {
+    background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+    padding: 15px 30px;
+    font-size: 16px;
+}
+
+.info {
+    background: #f0f0f0;
+    padding: 15px;
+    border-radius: 8px;
+    margin: 20px 0;
+    color: #555;
+}
+
+label {
+    font-weight: bold;
+    color: #555;
+}
+
+.spinner {
+    display: none;
+    text-align: center;
+    margin: 10px 0;
+}
+
+.emoji {
+    font-size: 48px;
+    text-align: center;
+    margin-bottom: 10px;
+}

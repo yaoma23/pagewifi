@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AirLock Setup</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="emoji">&#x1F512;</div>
+        <h1>AirLock Setup</h1>
+        <p class="subtitle">Configure your Wi-Fi connection</p>
+        
+        <button class="scan-btn" onclick="scanNetworks()">&#x1F4E1; Scan Networks</button>
+        <div class="spinner" id="spinner">Scanning...</div>
+        
+        <div id="networks"></div>
+        
+        <form id="configForm">
+            <label>Network Name (SSID):</label>
+            <input type="text" name="ssid" id="ssid" required placeholder="Select or enter Wi-Fi name">
+            
+            <label>Password:</label>
+            <input type="password" name="password" id="password" required placeholder="Enter Wi-Fi password">
+            
+            <button type="submit">&#x1F4BE; Save & Connect</button>
+        </form>
+        
+        <div id="message"></div>
+    </div>
+    
+    <script src="/script.js"></script>
+</body>
+</html>
