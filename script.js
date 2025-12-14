@@ -1,31 +1,75 @@
+// Mock WiFi networks for development (remove when ESP32 backend is available)
+const MOCK_NETWORKS = [
+    'HomeWiFi',
+    'OfficeNetwork',
+    'GuestNetwork',
+    'NeighborWiFi',
+    'MyNetwork_5G',
+    'PublicWiFi',
+    'SecureNetwork',
+    'TestNetwork'
+];
+
 function scanNetworks() {
-    document.getElementById('spinner').style.display = 'block';
-    document.getElementById('networks').innerHTML = '';
+    const spinner = document.getElementById('spinner');
+    const networksDiv = document.getElementById('networks');
     
-    fetch('/scan')
-        .then(response => response.json())
+    spinner.classList.add('active');
+    networksDiv.innerHTML = '';
+    
+    // Try to fetch from ESP32 backend
+    fetch('/scan', {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
-            document.getElementById('spinner').style.display = 'none';
+            spinner.classList.remove('active');
             
-            if (data.networks.length === 0) {
-                document.getElementById('networks').innerHTML = 
-                    '<p style="text-align:center;color:#999;">No networks found</p>';
+            if (!data.networks || data.networks.length === 0) {
+                networksDiv.innerHTML = 
+                    '<p style="text-align:center;color:var(--gray400);padding:16px;">No networks found</p>';
                 return;
             }
             
-            let html = '<div style="margin: 20px 0;">';
-            data.networks.forEach(net => {
-                html += '<button type="button" class="network-btn" onclick="selectNetwork(\'' + 
-                        net + '\')">&#x1F4F6; ' + net + '</button>';
-            });
-            html += '</div>';
-            document.getElementById('networks').innerHTML = html;
+            displayNetworks(data.networks);
         })
         .catch(err => {
-            document.getElementById('spinner').style.display = 'none';
-            document.getElementById('networks').innerHTML = 
-                '<p style="text-align:center;color:red;">Scan failed</p>';
+            console.log('Backend scan failed, using mock networks for development:', err);
+            // Fallback to mock networks for development
+            spinner.classList.remove('active');
+            
+            // Simulate network scan delay
+            setTimeout(() => {
+                displayNetworks(MOCK_NETWORKS);
+            }, 1000);
         });
+}
+
+function displayNetworks(networks) {
+    const networksDiv = document.getElementById('networks');
+    
+    if (networks.length === 0) {
+        networksDiv.innerHTML = 
+            '<p style="text-align:center;color:var(--gray400);padding:16px;">No networks found</p>';
+        return;
+    }
+    
+    let html = '';
+    networks.forEach(net => {
+        // Escape single quotes and other special characters
+        const escapedNet = net.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        html += '<button type="button" class="network-btn" onclick="selectNetwork(\'' + 
+                escapedNet + '\')">📶 ' + net + '</button>';
+    });
+    networksDiv.innerHTML = html;
 }
 
 function selectNetwork(ssid) {
@@ -37,6 +81,16 @@ function selectNetwork(ssid) {
 document.getElementById('configForm').addEventListener('submit', function(e) {
     e.preventDefault();
     
+    const messageDiv = document.getElementById('message');
+    const submitBtn = this.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    
+    // Show loading state
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="button-icon">⏳</span><span>Saving...</span>';
+    messageDiv.innerHTML = '';
+    messageDiv.className = 'message';
+    
     const formData = new FormData(this);
     const params = new URLSearchParams(formData);
     
@@ -47,12 +101,16 @@ document.getElementById('configForm').addEventListener('submit', function(e) {
     })
     .then(r => r.json())
     .then(data => {
-        document.getElementById('message').innerHTML = 
-            '<p style="color: green; text-align: center;">&#x2713; Saved! Restarting...</p>';
+        messageDiv.className = 'message success';
+        messageDiv.innerHTML = '✓ Saved! Device restarting...';
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
     })
     .catch(err => {
-        document.getElementById('message').innerHTML = 
-            '<p style="color: red; text-align: center;">Error saving config</p>';
+        messageDiv.className = 'message error';
+        messageDiv.innerHTML = '✗ Error saving config. Please try again.';
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
     });
 });
 

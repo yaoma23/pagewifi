@@ -8,15 +8,57 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import NfcManager, { NfcTech } from 'react-native-nfc-manager';
 import { BorderRadius, Colors, FontSizes, FontWeights, Spacing } from '../../constants/Colors';
+import { unlockESP32, ESP32Config } from '../../lib/esp32Client';
+import { supabase } from '../../lib/supabaseClient';
+
+// Initialize NFC Manager
+NfcManager.start();
 
 export default function NFCAccessScreen({ navigation, route }: any) {
   const { bookingId } = route.params || {};
-  const [scanState, setScanState] = useState<'ready' | 'scanning' | 'success'>('ready');
+  const [scanState, setScanState] = useState<'ready' | 'scanning' | 'success' | 'error'>('ready');
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [esp32Config, setEsp32Config] = useState<ESP32Config | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const rippleAnim1 = useRef(new Animated.Value(0)).current;
   const rippleAnim2 = useRef(new Animated.Value(0)).current;
   const rippleAnim3 = useRef(new Animated.Value(0)).current;
+
+  // Load ESP32 configuration from booking/property data
+  useEffect(() => {
+    const loadESP32Config = async () => {
+      if (!bookingId) return;
+      
+      try {
+        // Try to get ESP32 IP from property data
+        const { data: bookingData } = await supabase
+          .from('bookings')
+          .select('properties(esp32_ip)')
+          .eq('id', bookingId)
+          .single();
+
+        if (bookingData?.properties?.esp32_ip) {
+          setEsp32Config({ ip: bookingData.properties.esp32_ip });
+        }
+      } catch (error) {
+        console.log('Could not load ESP32 config from property, using default');
+      }
+    };
+
+    loadESP32Config();
+  }, [bookingId]);
+
+  // Cleanup NFC on unmount
+  useEffect(() => {
+    return () => {
+      // Cancel any ongoing NFC operations when component unmounts
+      NfcManager.cancelTechnologyRequest().catch(() => {
+        // Ignore cleanup errors
+      });
+    };
+  }, []);
 
   useEffect(() => {
     if (scanState === 'scanning') {
@@ -89,24 +131,7 @@ export default function NFCAccessScreen({ navigation, route }: any) {
       ripple2.start();
       ripple3.start();
 
-      // Simulate NFC scan (Hardcoded for demo)
-      const timer = setTimeout(() => {
-        pulseLoop.stop();
-        ripple1.stop();
-        ripple2.stop();
-        ripple3.stop();
-        setScanState('success');
-        setTimeout(() => {
-          if (bookingId) {
-            navigation.navigate('StayDetails', { bookingId });
-          } else {
-            navigation.goBack();
-          }
-        }, 2000);
-      }, 3000);
-
       return () => {
-        clearTimeout(timer);
         pulseLoop.stop();
         ripple1.stop();
         ripple2.stop();
@@ -115,8 +140,70 @@ export default function NFCAccessScreen({ navigation, route }: any) {
     }
   }, [scanState]);
 
-  const handleStartScan = () => {
+  const handleStartScan = async () => {
     setScanState('scanning');
+    setErrorMessage('');
+
+    try {
+      // Check if NFC is supported
+      const isSupported = await NfcManager.isSupported();
+      if (!isSupported) {
+        throw new Error('NFC is not supported on this device');
+      }
+
+      // Request NFC technology
+      await NfcManager.requestTechnology(NfcTech.Ndef);
+
+      // Read NFC tag
+      const tag = await NfcManager.getTag();
+      console.log('📱 NFC Tag detected:', tag);
+
+      // Stop NFC scanning
+      await NfcManager.cancelTechnologyRequest();
+
+      // Unlock ESP32
+      const result = await unlockESP32(esp32Config || undefined);
+      
+      if (result.success) {
+        setScanState('success');
+        setTimeout(() => {
+          if (bookingId) {
+            navigation.navigate('StayDetails', { bookingId });
+          } else {
+            navigation.goBack();
+          }
+        }, 2000);
+      } else {
+        setErrorMessage(result.message || 'Failed to unlock');
+        setScanState('error');
+      }
+    } catch (error: any) {
+      console.error('NFC scan error:', error);
+      
+      // Handle specific error cases
+      let errorMsg = 'Failed to scan NFC tag';
+      if (error.message?.includes('User cancelled')) {
+        errorMsg = 'NFC scan cancelled';
+        setScanState('ready');
+        return;
+      } else if (error.message?.includes('not supported')) {
+        errorMsg = 'NFC is not supported on this device';
+      } else if (error.message?.includes('timeout')) {
+        errorMsg = 'NFC scan timed out. Please try again.';
+      } else if (error.message) {
+        errorMsg = error.message;
+      }
+
+      setErrorMessage(errorMsg);
+      setScanState('error');
+      
+      // Cancel any ongoing NFC operations
+      try {
+        await NfcManager.cancelTechnologyRequest();
+      } catch (e) {
+        // Ignore cleanup errors
+      }
+    }
   };
 
   return (
@@ -135,11 +222,13 @@ export default function NFCAccessScreen({ navigation, route }: any) {
           {scanState === 'ready' && 'Access Key Box'}
           {scanState === 'scanning' && 'Hold Near Key Box'}
           {scanState === 'success' && 'Access Granted!'}
+          {scanState === 'error' && 'Error'}
         </Text>
         <Text style={styles.subtitle}>
           {scanState === 'ready' && 'Tap the button below to activate NFC scanning'}
-          {scanState === 'scanning' && 'Keep your phone close to the NFC reader'}
+          {scanState === 'scanning' && 'Keep your phone close to the NFC tag'}
           {scanState === 'success' && 'Key box unlocked successfully'}
+          {scanState === 'error' && errorMessage}
         </Text>
 
         <View style={styles.iconWrapper}>
@@ -212,11 +301,13 @@ export default function NFCAccessScreen({ navigation, route }: any) {
               styles.nfcIcon,
               scanState === 'scanning' && { transform: [{ scale: pulseAnim }] },
               scanState === 'success' && styles.nfcIconSuccess,
+              scanState === 'error' && styles.nfcIconError,
             ]}
           >
             {scanState === 'ready' && <Ionicons name="phone-portrait-outline" size={80} color={Colors.deepBlue} />}
             {scanState === 'scanning' && <Ionicons name="radio-outline" size={80} color={Colors.deepBlue} />}
             {scanState === 'success' && <Ionicons name="checkmark-circle-outline" size={80} color={Colors.emeraldGreen} />}
+            {scanState === 'error' && <Ionicons name="close-circle-outline" size={80} color={Colors.error} />}
           </Animated.View>
         </View>
 
@@ -237,6 +328,20 @@ export default function NFCAccessScreen({ navigation, route }: any) {
             <Text style={styles.successText}>
               You can now access the keys from the key box
             </Text>
+          </View>
+        )}
+
+        {scanState === 'error' && (
+          <View style={styles.errorMessage}>
+            <Text style={styles.errorText}>
+              {errorMessage || 'An error occurred'}
+            </Text>
+            <TouchableOpacity 
+              style={styles.retryButton} 
+              onPress={() => setScanState('ready')}
+            >
+              <Text style={styles.retryButtonText}>Try Again</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -322,6 +427,9 @@ const styles = StyleSheet.create({
   nfcIconSuccess: {
     backgroundColor: Colors.emeraldLight,
   },
+  nfcIconError: {
+    backgroundColor: '#ffebee',
+  },
   rippleRing: {
     position: 'absolute',
     width: 160,
@@ -406,5 +514,32 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     color: Colors.gray600,
     lineHeight: 20,
+  },
+  errorMessage: {
+    backgroundColor: '#ffebee',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.xl,
+    alignItems: 'center',
+  },
+  errorText: {
+    fontSize: FontSizes.base,
+    color: '#c62828',
+    fontWeight: FontWeights.medium,
+    textAlign: 'center',
+    marginBottom: Spacing.md,
+  },
+  retryButton: {
+    backgroundColor: Colors.deepBlue,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.xs,
+  },
+  retryButtonText: {
+    fontSize: FontSizes.base,
+    fontWeight: FontWeights.semibold,
+    color: Colors.white,
   },
 });
